@@ -1,0 +1,356 @@
+---
+title: "Data Story on US presidents' inaugural speeches"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+The United States has experienced three major economic crises in the twentieth century. During these important economic crises, three presidents were formally inaugurated. They were Franklin Roosevelt, Ronald Reagan and Barack Obama. I choose these three presidents and the most controversial president in America history, Donald Trump, to study the similarities and differences between their inaugural speeches. Comparing the first inaugural addresses of these presidents may provide us important clues to their policies and attitudes which they have at different times.
+
+##Install and load the required packages
+```{r,warning=FALSE}
+# Install
+packages.used=c("rvest", "tidyr", "gridExtra", 
+                "plotrix", "dplyr",
+                "tm", "syuzhet", "wordcloud", 
+                "beeswarm", "scales", "RColorBrewer",
+                "SnowballC", "tm", "ggplot2")
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+#load packages
+library("tm")
+library("SnowballC")
+library("wordcloud")
+library("RColorBrewer")
+library("syuzhet")
+library("ggplot2")
+library("gridExtra")
+library("tidyr")
+library("scales")
+library("dplyr")
+library("plotrix")
+library("beeswarm")
+```
+
+##Read the text file
+```{r,warning=FALSE}
+folder.path="~/Desktop/Applied Data Science/wk2-TextMining//data/inaugurals/"
+docs<-Corpus(DirSource(folder.path))
+```
+
+##Cleaning the text
+```{r,warning=FALSE}
+# Convert the text to lower case
+docs <- tm_map(docs, content_transformer(tolower))
+# Remove numbers
+docs <- tm_map(docs, removeNumbers)
+# Remove english common stopwords
+docs <- tm_map(docs, removeWords, stopwords("english"))
+# Remove punctuations
+docs <- tm_map(docs, removePunctuation)
+# Eliminate extra white spaces
+docs <- tm_map(docs, stripWhitespace)
+
+```
+
+
+##Word frequency
+These are top 10 most commonly used words in the speeches.
+```{r,warning=FALSE}
+#Build term-document matrix
+tdm.1 <- TermDocumentMatrix(docs["inaugFranklinDRoosevelt-1.txt"])
+m.1 <- as.matrix(tdm.1)
+v.1 <- sort(rowSums(m.1),decreasing=TRUE)
+d.1 <- data.frame(word = names(v.1),freq=v.1)
+
+tdm.2 <- TermDocumentMatrix(docs["inaugRonaldReagan-1.txt"])
+m.2 <- as.matrix(tdm.2)
+v.2 <- sort(rowSums(m.2),decreasing=TRUE)
+d.2 <- data.frame(word = names(v.2),freq=v.2)
+
+tdm.3 <- TermDocumentMatrix(docs["inaugBarackObama-1.txt"])
+m.3 <- as.matrix(tdm.3)
+v.3 <- sort(rowSums(m.3),decreasing=TRUE)
+d.3 <- data.frame(word = names(v.3),freq=v.3)
+
+tdm.4 <- TermDocumentMatrix(docs["inaugDonaldJTrump-1.txt"])
+m.4 <- as.matrix(tdm.4)
+v.4 <- sort(rowSums(m.4),decreasing=TRUE)
+d.4 <- data.frame(word = names(v.4),freq=v.4)
+
+#top 10 most commonly used words in each speech
+head(d.1, 10)
+head(d.2, 10)
+head(d.3, 10)
+head(d.4, 10)
+```
+
+
+##Generate the Word cloud
+Word cloud is a informative way to look at the words in speeches as a whole. It can give us a general feeling about what they said in their speeches.
+```{r,warning=FALSE,fig.height=6,fig.width=8}
+par(mfrow=c(2,2))
+set.seed(1234)
+#Franklin Roosevelt
+wordcloud(words = d.1$word, freq = d.1$freq, min.freq = 2,
+          max.words=100, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+#Ronald Reagan
+wordcloud(words = d.2$word, freq = d.2$freq, min.freq = 2,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+
+#Barack Obama
+wordcloud(words = d.3$word, freq = d.3$freq, min.freq = 2,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+
+#Donald Trump
+wordcloud(words = d.4$word, freq = d.4$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+```
+
+Compare these four word clouds, we can see that the frequency of word repetition is relatively high for president Roosevelt. United States was under the worst depression and economic crisis in the history when Franklin Roosevelt became President of America for the first time. So we can see words like “helped”,“failure”, “dark” in his word cloud. President Reagan known as a anti-establishment politician, different from other presidents. He thinks government is the problem, but not the solution to the problem. So he emphasizes the word “government” in his speech. We can see that both Obama and Trump used the word "America" frequently in their speeches. The words like  “today”, “now”, “time” can somehow reveal Obama’s positive attitude to revolution. In fact, he indeed launched a series of new policies very quickly after his inauguration.
+
+
+
+
+
+##Words in common 
+We know that both Roosevelt and Obama are democratic presidents while Reagan and Trump are republican presidents. It can be interesting to see whether presidents from the same political party share a similar concern in their speeches.
+```{r,fig.height=5,fig.width=12}
+par(mfrow=c(1,2))
+#Roosevelt and Obama
+row.1<-rownames(m.1)
+row.3<-rownames(m.3)
+common.row<-intersect(row.1,row.3)
+common.1<-as.matrix(m.1[common.row,])
+common.3<-as.matrix(m.3[common.row,])
+common.words<-cbind(common.1,common.3)
+diff<-abs(common.words[,1]-common.words[,2])
+common.words<-cbind(common.words,diff)
+common.words<-common.words[order(common.words[,3],decreasing=TRUE),]
+top25.df<-data.frame(x=common.words[1:25,1],y=common.words[1:25,2],labels=rownames(common.words[1:25,]))
+#polarized tag plot
+pyramid.plot(top25.df$x,top25.df$y,labels=top25.df$labels,gap=15,top.labels = c("Roosevelt","word","Obama"),main="words in common",laxlab=NULL,raxlab=NULL,unit=NULL)
+
+#Reagan and trump
+row.4<-rownames(m.4)
+row.3<-rownames(m.3)
+common.row<-intersect(row.4,row.3)
+common.4<-as.matrix(m.4[common.row,])
+common.3<-as.matrix(m.3[common.row,])
+common.words<-cbind(common.4,common.3)
+#head(common.words)
+diff<-abs(common.words[,1]-common.words[,2])
+common.words<-cbind(common.words,diff)
+common.words<-common.words[order(common.words[,3],decreasing=TRUE),]
+top25.df<-data.frame(x=common.words[1:25,1],y=common.words[1:25,2],labels=rownames(common.words[1:25,]))
+pyramid.plot(top25.df$x,top25.df$y,labels=top25.df$labels,gap=15,top.labels = c("Reagan","word","Trump"),main="words in common",laxlab=NULL,raxlab=NULL,unit=NULL)
+
+```
+
+The plot contains words that are in common but have the 25 largest differences in use. Except the words like "will", "can", "nation" show in all four speeches, the words Reagan and Trump have in common are very different from what Roosevelt and Obama have. Roosevelt and Obama appeared to show a great concern in economy and work as democratic presidents. And the words like “borders”, “across” on the other hand revealed Reagan and Trump's great concern in defense and immigration.
+
+##Length of sentences
+```{r,warning=FALSE}
+par(mfrow=c(2,2))
+#FranklinDRoosevelt
+lines.1 <- readLines("~/Desktop/Applied Data Science/wk2-TextMining/data/inaugurals/inaugFranklinDRoosevelt-1.txt")
+lines.1 <- strsplit(lines.1, "[.!?] *")
+Roosevelt<- unlist(lines.1, use.names=FALSE)
+#count words in a sentence
+temp1<-numeric(length(Roosevelt))
+for(i in 1:length(Roosevelt)){
+  temp1[i]<-sapply(gregexpr("\\W+", Roosevelt[i]), length)
+}
+group1<-rep("Roosevelt",length(Roosevelt))
+n1<-1:length(Roosevelt)
+r1<-data.frame(n1,temp1,group1)
+beeswarm(temp1, 
+         data=r1,
+         horizontal = FALSE, 
+         pch=16, col=alpha(brewer.pal(9, "Set1"), 0.6), 
+         cex=0.55, cex.axis=0.8, cex.lab=0.8,
+         las=2, 
+         main="Franklin Roosevelt")
+
+#RonaldReagan
+lines.2 <- readLines("~/Desktop/Applied Data Science/wk2-TextMining/data/inaugurals/inaugRonaldReagan-1.txt")
+lines.2 <- strsplit(lines.2, "[.!?] *")
+Reagan<- unlist(lines.2, use.names=FALSE)
+temp2<-numeric(length(Reagan))
+for(i in 1:length(Reagan)){
+  temp2[i]<-sapply(gregexpr("\\W+", Reagan[i]), length)
+}
+group2<-rep("Reagan",length(Reagan))
+n2<-1:length(Reagan)
+r2<-data.frame(n2,temp2,group2)
+beeswarm(temp2, 
+         data=r2,
+         horizontal = FALSE, 
+         pch=16, col=alpha(brewer.pal(9, "Set1"), 0.6), 
+         cex=0.55, cex.axis=0.8, cex.lab=0.8,
+         las=2, 
+         main="Ronald Reagan")
+
+#BarackObama
+lines.3 <- readLines("~/Desktop/Applied Data Science/wk2-TextMining/data/inaugurals/inaugBarackObama-1.txt")
+lines.3 <- strsplit(lines.3, "[.!?] *")
+obama<- unlist(lines.3, use.names=FALSE)
+temp3<-numeric(length(obama))
+for(i in 1:length(obama)){
+  temp3[i]<-sapply(gregexpr("\\W+", obama[i]), length)
+}
+group3<-rep("Obama",length(obama))
+n3<-1:length(obama)
+r3<-data.frame(n3,temp3,group3)
+beeswarm(temp3, 
+         data=r3,
+         horizontal = FALSE, 
+         pch=16, col=alpha(brewer.pal(9, "Set1"), 0.6), 
+         cex=0.55, cex.axis=0.8, cex.lab=0.8,
+         las=2, 
+         main="Barack Obama")
+
+#DonaldJTrump
+lines.4 <- readLines("~/Desktop/Applied Data Science/wk2-TextMining/data/inaugurals/inaugDonaldJTrump-1.txt")
+lines.4 <- strsplit(lines.4, "[.!?] *")
+Trump<- unlist(lines.4, use.names=FALSE)
+temp4<-numeric(length(Trump))
+for(i in 1:length(Trump)){
+  temp4[i]<-sapply(gregexpr("\\W+", Trump[i]), length)
+}
+group4<-rep("Trump",length(Trump))
+n4<-1:length(Trump)
+r4<-data.frame(n4,temp4,group4)
+beeswarm(temp4, 
+         data=r4,
+         horizontal = FALSE, 
+         pch=16, col=alpha(brewer.pal(9, "Set1"), 0.6), 
+         cex=0.55, cex.axis=0.8, cex.lab=0.8,
+         las=2,
+         main="Donald Trump")
+```
+
+In the above plots, y-axis represents the number of words in a sentence and dots with the same y value represent sentences with the same length. The plot of president Roosevelt has long and thin upper half. It shows that Roosevelt is the one who likes to use long sentences.The middle part of Reagan's plot is very wide, so most sentences he used are neither too long or too short. President Obama is famous for his eloquence, here the length of sentences in his speech is evenly distributed comparing with other three presidents. Trump is considered as a straight talker, this might explains why he prefers very short sentences. His way of talking is more direct and practical.
+
+
+
+
+##sentiment analysis 
+Explore the emotion difference between speeches from each president with the NRC emotion lexicon. 
+The get_nrc_sentiment function returns a data frame in which each row represents a sentence from the original file. The columns include one for each emotion type.
+```{r,warning=FALSE,fig.height=4.6,fig.width=12}
+#FranklinDRoosevelt
+d.1<-get_nrc_sentiment(Roosevelt)
+td.1<-data.frame(t(d.1))
+td_new.1 <- data.frame(rowSums(td.1[-1]))
+#Transformation and  cleaning
+names(td_new.1)[1] <- "count"
+td_new.1 <- cbind("sentiment" = rownames(td_new.1), td_new.1)
+rownames(td_new.1) <- NULL
+td_new2.1<-td_new.1[1:8,]
+#Visualisation
+#plot.1<-qplot(sentiment, data=td_new2.1, weight=count, geom="bar",fill=sentiment)+ggtitle("Franklin D Roosevelt")
+
+
+#RonaldReagan
+d.2<-get_nrc_sentiment(Reagan)
+td.2<-data.frame(t(d.2))
+td_new.2 <- data.frame(rowSums(td.2[-1]))
+#Transformation and  cleaning
+names(td_new.2)[1] <- "count"
+td_new.2 <- cbind("sentiment" = rownames(td_new.2), td_new.2)
+rownames(td_new.2) <- NULL
+td_new2.2<-td_new.2[1:8,]
+#Visualisation
+#plot.2<-qplot(sentiment, data=td_new2.2, weight=count, geom="bar",fill=sentiment)+ggtitle("Ronald Reagan")
+#grid.arrange(plot.1, plot.2,ncol=2)
+
+
+#BarackObama
+d.3<-get_nrc_sentiment(obama)
+td.3<-data.frame(t(d.3))
+td_new.3 <- data.frame(rowSums(td.3[-1]))
+#Transformation and  cleaning
+names(td_new.3)[1] <- "count"
+td_new.3 <- cbind("sentiment" = rownames(td_new.3), td_new.3)
+rownames(td_new.3) <- NULL
+td_new2.3<-td_new.3[1:8,]
+#Visualisation
+#plot.3<-qplot(sentiment, data=td_new2.3, weight=count, geom="bar",fill=sentiment)+ggtitle("Barack Obama")
+
+#Donald Trump
+d.4<-get_nrc_sentiment(Trump)
+td.4<-data.frame(t(d.4))
+td_new.4 <- data.frame(rowSums(td.4[-1]))
+#Transformation and  cleaning
+names(td_new.4)[1] <- "count"
+td_new.4 <- cbind("sentiment" = rownames(td_new.4), td_new.4)
+rownames(td_new.4) <- NULL
+td_new2.4<-td_new.4[1:8,]
+
+#Visualisation
+plot.1<-qplot(sentiment, data=td_new2.1, weight=count, geom="bar",fill=sentiment)+ggtitle("Franklin D Roosevelt")
+plot.2<-qplot(sentiment, data=td_new2.2, weight=count, geom="bar",fill=sentiment)+ggtitle("Ronald Reagan")
+grid.arrange(plot.1, plot.2,ncol=2)
+plot.3<-qplot(sentiment, data=td_new2.3, weight=count, geom="bar",fill=sentiment)+ggtitle("Barack Obama")
+plot.4<-qplot(sentiment, data=td_new2.4, weight=count, geom="bar",fill=sentiment)+ggtitle("Donald Trump")
+grid.arrange(plot.3, plot.4,ncol=2)
+```
+
+NRC emotion lexicon divides emotion into eight types: anger, fear, anticipation, trust, surprise, sadness, joy, and disgust. In the plot, each bar represents how prominent each of the emotion is in text. One thing worth noticing is that although inaugurated under major economic crises, Reagan's emotion is very different from those of the other two presidents. He shows more positive attitude in his speech. While Roosevelt and Obama have relatively balanced speech and share similar emotion distribution. Trump is the one who has the least negative emotion in his speech. His chart is a combination of high trust and joy with a low sadness and disgust. That reflects the situation Trump is at the moment of the speech.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
